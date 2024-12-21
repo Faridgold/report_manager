@@ -1,0 +1,163 @@
+import 'package:flutter/material.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'pages/project_management_page.dart';
+import 'pages/reports_page.dart';
+import 'pages/database_helper.dart';
+import 'pages/create_report_page.dart';
+
+void main() {
+  sqfliteFfiInit();
+  databaseFactory = databaseFactoryFfi;
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'مدیریت گزارش‌ها',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: DashboardPage(),
+    );
+  }
+}
+
+class DashboardPage extends StatefulWidget {
+  @override
+  _DashboardPageState createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  Map<String, List<Map<String, dynamic>>> projectReports = {};
+  bool isLoading = true;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProjectReports();
+  }
+
+  Future<void> _loadProjectReports() async {
+    final db = DatabaseHelper.instance;
+    final projects = await db.getProjects();
+
+    Map<String, List<Map<String, dynamic>>> tempProjectReports = {};
+
+    for (var project in projects) {
+      final projectId = project['id'];
+      final fetchedReports = await db.getReportsByProjectId(projectId);
+      tempProjectReports[projectId.toString()] = fetchedReports;
+    }
+
+    setState(() {
+      projectReports = tempProjectReports;
+      isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('داشبورد'),
+        centerTitle: true,
+      ),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : _currentIndex == 0
+              ? _buildDashboardContent(context)
+              : _buildSettingsPage(),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'خانه',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'تنظیمات',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDashboardContent(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildDashboardButton(
+              context,
+              'ایجاد گزارش',
+              Icons.create,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => CreateReportPage()),
+              ),
+            ),
+            SizedBox(height: 20),
+            _buildDashboardButton(
+              context,
+              'مدیریت پروژه‌ها',
+              Icons.manage_accounts,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ProjectManagementPage()),
+              ),
+            ),
+            SizedBox(height: 20),
+            _buildDashboardButton(
+              context,
+              'مدیریت گزارش‌ها',
+              Icons.description,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ReportsPage(projectReports: projectReports),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsPage() {
+    return Center(
+      child: Text(
+        'صفحه تنظیمات',
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildDashboardButton(
+      BuildContext context, String title, IconData icon, VoidCallback onPressed) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 24),
+      label: Text(title, style: TextStyle(fontSize: 18)),
+      style: ElevatedButton.styleFrom(
+        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 4,
+      ),
+    );
+  }
+}
